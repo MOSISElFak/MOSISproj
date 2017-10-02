@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context="zdravkovic.stefan.parkingapp.MapsActivity">
+    <item
+        android:id="@+id/btnClear"
+        android:icon="@android:drawable/ic_delete"
+        android:title="Clear geofance"
+        app:showAsAction="always" />
+    <item
+        android:icon="@drawable/unnamed"
+        android:id="@+id/btnMyCar"
+        android:title="My car"
+        app:showAsAction="always"
+        />
+    <item
+        android:id="@+id/find"
+        android:title="Find Parking"
+        android:icon="@drawable/parkme"
+        app:showAsAction="always"/>
+    <item
+        android:id="@+id/findClose"
+        android:icon="@android:drawable/ic_menu_close_clear_cancel"
+        android:title="cancel"
+        android:visible="false"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/menuAll"
+        android:title="All"/>
+    <item
+        android:id="@+id/menuFree"
+        android:title="Free"/>
+    <item
+        android:id="@+id/menuPaid"
+        android:title="Paid"/>
+
+</menu>
