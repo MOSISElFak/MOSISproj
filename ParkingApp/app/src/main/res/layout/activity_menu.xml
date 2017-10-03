@@ -41,14 +41,6 @@
             android:layout_marginTop="16dp"
             android:text="Map"
             android:textAllCaps="false" />
-        <Button
-            android:id="@+id/btnDummy"
-            style="@android:style/Widget.Button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Dummy"
-            android:textAllCaps="false" />
 
         <Button
             android:id="@+id/btnLogout"
