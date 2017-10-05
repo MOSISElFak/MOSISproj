@@ -16,6 +16,7 @@ import android.graphics.Matrix;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.nfc.Tag;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.ContactsContract;
@@ -146,10 +147,11 @@ public class ProfileActivity extends AppCompatActivity implements View.OnClickLi
             @Override
             public void onFailure(@NonNull Exception exception) {
                 // Handle failed download
-                Toast.makeText(getApplicationContext(),"Something went wrong, couldn't download profile picture",Toast.LENGTH_LONG).show();
+               // Toast.makeText(getApplicationContext(),"Something went wrong, couldn't download profile picture",Toast.LENGTH_LONG).show();
             }
         });
     }
+
     private void uploadPicture(Uri file) {
         final ProgressDialog progressDialog = new ProgressDialog(this);
         progressDialog.setTitle("Uploading ...");
@@ -177,6 +179,7 @@ public class ProfileActivity extends AppCompatActivity implements View.OnClickLi
                     @Override
                     public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
                         //displaying the upload progress
+                       // @SuppressWarnings("VisibleForTests")
                         double progress = (100.0 * taskSnapshot.getBytesTransferred()) / taskSnapshot.getTotalByteCount();
                         progressDialog.setMessage("Uploaded " + ((int) progress) + "%...");
                     }
@@ -185,19 +188,26 @@ public class ProfileActivity extends AppCompatActivity implements View.OnClickLi
 
 //-----------------------------------------------//
     public void takePhoto(){
-        if(ContextCompat.checkSelfPermission(this,android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
-                ContextCompat.checkSelfPermission(this,android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+        //callCameraApp();
+
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
                 ){
             callCameraApp();
         }else{
-            if(shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE) && shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)){
-                Toast.makeText(this,
-                        "External storage and camera permission required to save images.",
-                        Toast.LENGTH_SHORT).show();
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if(shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE) && shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)){
+                    Toast.makeText(this,
+                            "External storage and camera permission required to save images.",
+                            Toast.LENGTH_SHORT).show();
+                }
+
 
             requestPermissions(new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE,Manifest.permission.CAMERA}, CAMERA_PERMISSIONS_REQUEST);
+            }
         }
+
     }
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults){
@@ -306,22 +316,24 @@ public class ProfileActivity extends AppCompatActivity implements View.OnClickLi
     public void onWindowFocusChanged(boolean focus) {
         // TODO Auto-generated method stub
         super.onWindowFocusChanged(focus);
+        if (focus){
+            if(photoIsTaken){
+                // Toast.makeText(this,photoIsTaken + "// Inside onWindowFocusChanged() if statemant",Toast.LENGTH_LONG).show();
+                photoIsTaken = false;
+                rotateImage(setReducedImageSize(mImageFileLocation),mImageFileLocation);
+                fabUpload.setVisibility(View.VISIBLE);
+            }
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if(photoIsTaken){
-           // Toast.makeText(this,photoIsTaken + "// Inside onWindowFocusChanged() if statemant",Toast.LENGTH_LONG).show();
-            photoIsTaken = false;
-            rotateImage(setReducedImageSize(mImageFileLocation),mImageFileLocation);
-            fabUpload.setVisibility(View.VISIBLE);
-        }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        Toast.makeText(this,photoIsTaken + "//",Toast.LENGTH_LONG).show();
+       // Toast.makeText(this,photoIsTaken + "//",Toast.LENGTH_LONG).show();
        if (requestCode == CAMERA_REQUEST && resultCode == Activity.RESULT_OK) {
            photoIsTaken = true;
          //  Toast.makeText(this,photoIsTaken + "// Inside onActivityResult() if statemant",Toast.LENGTH_LONG).show();
@@ -349,7 +361,7 @@ public class ProfileActivity extends AppCompatActivity implements View.OnClickLi
 
             @Override
             public void onCancelled(DatabaseError databaseError) {
-                Toast.makeText(ProfileActivity.this,"Something went wrong. Please try again...",Toast.LENGTH_SHORT).show();
+                //Toast.makeText(ProfileActivity.this,"Something went wrong. Please try again...",Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -366,7 +378,7 @@ public class ProfileActivity extends AppCompatActivity implements View.OnClickLi
         UserInformation userInformation = new UserInformation(first_name,last_name,address,city,country,zip,phone_number);
 
         databaseReference.child(user.getUid()).setValue(userInformation);
-        Toast.makeText(this, "Infomation saved..", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Information saved..", Toast.LENGTH_LONG).show();
 
     }
 

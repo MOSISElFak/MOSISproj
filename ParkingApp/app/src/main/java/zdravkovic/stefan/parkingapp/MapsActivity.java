@@ -1,36 +1,26 @@
 package zdravkovic.stefan.parkingapp;
 
-import android.app.ActionBar;
 import android.app.Dialog;
 import android.Manifest;
-import android.app.PendingIntent;
 import android.app.ProgressDialog;
-import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.drawable.BitmapDrawable;
-import android.location.Address;
-import android.location.Geocoder;
+import android.graphics.drawable.Drawable;
 import android.location.Location;
-import android.location.LocationListener;
-import android.os.Build;
-import android.provider.MediaStore;
+import android.media.ExifInterface;
 import android.support.annotation.IdRes;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
-import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
-import android.support.v7.app.ActionBarActivity;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -47,10 +37,6 @@ import android.widget.Toast;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
-import com.google.android.gms.common.api.Status;
-import com.google.android.gms.location.Geofence;
-import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -59,14 +45,14 @@ import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.Circle;
-import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DataSnapshot;
@@ -74,39 +60,48 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.storage.FileDownloadTask;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
 
-import org.w3c.dom.Text;
-
+import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import Modules.DirectionFinder;
 import Modules.DirectionFinderListener;
 import Modules.Route;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, DirectionFinderListener, View.OnClickListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener,ResultCallback<Status> {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, DirectionFinderListener, View.OnClickListener, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, com.google.android.gms.location.LocationListener{
+
 
     private GoogleMap mMap;
     private GoogleApiClient mGoogleApiClient;
     private LocationRequest mLocationRequest;
     private boolean setFocusToCurrentLocation = false;
     private Location currentLocation;
-    private Marker myCar, newParking, myLocation;
-    private DatabaseReference databaseReference, databaseRefRatings;
+    private Marker newParking, myLocation;
+    private DatabaseReference databaseReference, databaseRefRatings,dbRefUsersLocation;
     private FirebaseAuth firebaseAuth;
     private FirebaseUser user;
     public RatingInformation rInfo;
     private boolean checkOnInfoWindowClick = false, directions = false;
     private String ratedMarkerID;
     private int markersType = 0;
-    private MenuItem btnFind, btnCancel,btnClearGeofence;
+    private MenuItem btnFind, btnCancel;
     private ProgressDialog progressDialog;
     private List<Marker> originMarkers = new ArrayList<>();
     private List<Marker> destinationMarkers = new ArrayList<>();
     private List<Polyline> polylinePaths = new ArrayList<>();
+    private ArrayList<Marker> markers = new ArrayList<Marker>();
+    private ArrayList<Marker> friendsMarkers = new ArrayList<Marker>();
+    private ArrayList<Marker> usersMarkers = new ArrayList<Marker>();
+    private DatabaseReference friendsReference;
+
+    private ArrayList<String> friendsList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -114,24 +109,56 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
+
         if (googleServicesAvailable()) {
             setContentView(R.layout.activity_maps);
             initMap();
 
             databaseReference = FirebaseDatabase.getInstance().getReference("Markers");
             databaseRefRatings = FirebaseDatabase.getInstance().getReference("Ratings");
+            dbRefUsersLocation = FirebaseDatabase.getInstance().getReference("Current Location");
+            friendsReference = FirebaseDatabase.getInstance().getReference("Friends");
+
             firebaseAuth = FirebaseAuth.getInstance();
             user = firebaseAuth.getCurrentUser();
 
 
+            friendsList = new ArrayList<String>();
+            GetAllFriends();
         }
     }
+
 
     private void initMap() {
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
     }
+
+    private void GetAllFriends(){
+        DatabaseReference ref = friendsReference.child(user.getUid());
+
+        ref.addValueEventListener(new ValueEventListener() {
+
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                Iterable<DataSnapshot> children = dataSnapshot.getChildren();
+                for (DataSnapshot child : children) {
+
+                    Friend f = child.getValue(Friend.class);
+                    if(f != null) {
+                        friendsList.add(f.id);
+                    }
+                }
+            }
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+
 
     public boolean googleServicesAvailable() {
         GoogleApiAvailability api = GoogleApiAvailability.getInstance();
@@ -147,18 +174,17 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         return false;
     }
 
-    /**
-     * Manipulates the map once available.
-     * This callback is triggered when the map is ready to be used.
-     * This is where we can add markers or lines, add listeners or move the camera. In this case,
-     * we just add a marker near Sydney, Australia.
-     * If Google Play services is not installed on the device, the user will be prompted to install
-     * it inside the SupportMapFragment. This method will only be triggered once the user has
-     * installed Google Play services and returned to the app.
-     */
+
+
+
+
+
+
     private void showAlertDialog(double lat, double lng){
+
         AlertDialog.Builder mBuilder = new AlertDialog.Builder(MapsActivity.this);
         View v = getLayoutInflater().inflate(R.layout.info_window, null);
+
         Button btnSave = (Button) v.findViewById(R.id.btn_save_marker);
         final RadioGroup rgFree = (RadioGroup) v.findViewById(R.id.radio_g_free);
         final TextView tvPrice = (TextView) v.findViewById(R.id.tv_price);
@@ -183,6 +209,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             }
         });
+
         mBuilder.setView(v);
         final AlertDialog dialog = mBuilder.create();
         dialog.show();
@@ -211,7 +238,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+
+
+
+
     private void showRatingDialog(double lat, double lng, float rating, Boolean checked, int sumChecked, int sumUnchecked){
+
+
         AlertDialog.Builder mBuilder = new AlertDialog.Builder(MapsActivity.this);
         final View v = getLayoutInflater().inflate(R.layout.rating_window, null);
 
@@ -247,9 +280,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         rgVerify.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(RadioGroup group, @IdRes int checkedId) {
-
-             //   RadioButton rbChecked = (RadioButton) v.findViewById(R.id.rb_check);
-              //  RadioButton rbUnchecked =  (RadioButton) v.findViewById(R.id.rb_unchecked);
 
                 if(checkedId == R.id.rb_check){
                     rbChecked.setBackgroundColor(getResources().getColor(R.color.veryLightGreen));
@@ -298,27 +328,30 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
     }
 
+
+
     boolean check = false;
+    boolean checkRating = false;
 
     private void updateRatingToMarker(String markerId) {
         checkRating = true;
-        //resultOfCalculation = new RatingObject();
+
         getRatingsForMarker(markerId,null,0.0,0.0);
-        //RatingObject ratingObject = resultOfCalculation;
     }
 
-    boolean checkRating = false;
-    public RatingObject resultOfCalculation = null;
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+
         getMenuInflater().inflate(R.menu.menu_map, menu);
         btnFind = menu.findItem(R.id.find);
         btnCancel = menu.findItem(R.id.findClose);
-        btnClearGeofence = menu.findItem(R.id.btnClear);
 
         return super.onCreateOptionsMenu(menu);
     }
+
+
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -326,20 +359,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         switch (item.getItemId()){
             case R.id.menuAll:
                 markersType = 0;
-                setAllMarkers();
+                getAllMarkersFromDatabase();
                 break;
             case R.id.menuFree:
                 markersType = 1;
-                setAllMarkers();
+                getAllMarkersFromDatabase();
                 break;
             case R.id.menuPaid:
                 markersType = 2;
-                setAllMarkers();
-                break;
-            case R.id.btnMyCar:
-                myCar.setPosition(new LatLng(currentLocation.getLatitude(),currentLocation.getLongitude()));
-                myCar.setVisible(true);
-                startGeofence();
+                getAllMarkersFromDatabase();
                 break;
             case R.id.find:
                 sendRequest();
@@ -352,32 +380,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 btnFind.setVisible(true);
                 mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(currentLocation.getLatitude(),currentLocation.getLongitude()), 16));
                 break;
-            case R.id.btnClear:
-                clearGeofence();
-                break;
             default:
                 break;
         }
         return super.onOptionsItemSelected(item);
     }
 
+
+
     @Override
     public void onMapReady(GoogleMap googleMap) {
+
         mMap = googleMap;
 
         if(mMap != null){
 
-            int height = 50;
-            int width = 50;
-            BitmapDrawable bitmapdraw =(BitmapDrawable)getResources().getDrawable(R.drawable.unnamed);
-            Bitmap b = bitmapdraw.getBitmap();
-            Bitmap smallMarker = Bitmap.createScaledBitmap(b, width, height, false);
-            myCar = mMap.addMarker(new MarkerOptions()
-                    .draggable(false)
-                    .position(new LatLng(0,0))
-                    .icon(BitmapDescriptorFactory.fromBitmap(smallMarker))
-                    .snippet("my car")
-                    .visible(false));
             int h = 100;
             int w = 80;
             BitmapDrawable bitmapd =(BitmapDrawable)getResources().getDrawable(R.drawable.locationmarkerparking);
@@ -393,7 +410,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
                 @Override
                 public boolean onMarkerClick(Marker marker) {
-                    if(marker.getId().equals(myLocation.getId()) || marker.getId().equals(myCar.getId()) || marker.getId().equals( newParking.getId())){
+                    if(marker.getId().equals(myLocation.getId()) || marker.getId().equals( newParking.getId())){
                         return true;
                     }
                     for (Marker m : originMarkers) {
@@ -401,6 +418,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             return true;
                     }
                     for (Marker m : destinationMarkers) {
+                        if (marker.getId().equals( m.getId()))
+                            return true;
+                    }
+                    for (Marker m : usersMarkers) {
+                        if (marker.getId().equals( m.getId()))
+                            return true;
+                    }
+                    for (Marker m : friendsMarkers) {
+
                         if (marker.getId().equals( m.getId()))
                             return true;
                     }
@@ -419,14 +445,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 public void onMapClick(LatLng latLng) {
                 }
             });
-
-           /* mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
-                @Override
-                public boolean onMarkerClick(Marker marker) {
-                    return false;
-                }
-            });*/
-
             mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
                 @Override
                 public void onMarkerDragStart(Marker marker) {
@@ -448,7 +466,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     showAlertDialog(lat,lng);
                 }
             });
-            setAllMarkers();
+            getAllMarkersFromDatabase();
+            SetFriendsMarkers();
 
             mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter(){
 
@@ -459,46 +478,49 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 @Override
                 public View getInfoContents(Marker marker) {
-                    View v = getLayoutInflater().inflate(R.layout.info, null);
 
-                    TextView tvTitle = (TextView) v.findViewById(R.id.tv_title);
-                    TextView tvPrice = (TextView) v.findViewById(R.id.tv_parking_cost);
-                    TextView tvRating = (TextView) v.findViewById(R.id.tv_rating);
-                    TextView tvChecked = (TextView) v.findViewById(R.id.tv_checked_green);
-                    TextView tvUnchecked = (TextView) v.findViewById(R.id.tv_checked_red);
+                        View v = getLayoutInflater().inflate(R.layout.info, null);
 
-                    MarkerInformation markerInfo = (MarkerInformation) marker.getTag();
-                    if(markerInfo!=null){
+                        TextView tvTitle = (TextView) v.findViewById(R.id.tv_title);
+                        TextView tvPrice = (TextView) v.findViewById(R.id.tv_parking_cost);
+                        TextView tvRating = (TextView) v.findViewById(R.id.tv_rating);
+                        TextView tvChecked = (TextView) v.findViewById(R.id.tv_checked_green);
+                        TextView tvUnchecked = (TextView) v.findViewById(R.id.tv_checked_red);
 
-                        tvTitle.setText(marker.getTitle());
-                        tvPrice.setText(markerInfo.price);
-                        tvRating.setText(String.valueOf(markerInfo.averageRating));
-                        tvChecked.setText(String.valueOf(markerInfo.sumChecked));
-                        tvUnchecked.setText(String.valueOf(markerInfo.sumUnchecked));
+                        MarkerInformation markerInfo = (MarkerInformation) marker.getTag();
+                        if(markerInfo!=null){
+
+                            tvTitle.setText(marker.getTitle());
+                            tvPrice.setText(markerInfo.price);
+                            tvRating.setText(String.valueOf(markerInfo.averageRating));
+                            tvChecked.setText(String.valueOf(markerInfo.sumChecked));
+                            tvUnchecked.setText(String.valueOf(markerInfo.sumUnchecked));
+                        }
+                        return v;
                     }
-                    return v;
-                }
             });
 
             mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
                 @Override
                 public void onInfoWindowClick(Marker marker) {
-                    double lat = marker.getPosition().latitude;
-                    double lng = marker.getPosition().longitude;
 
-                    MarkerInformation mInfo = (MarkerInformation) marker.getTag();
+                        double lat = marker.getPosition().latitude;
+                        double lng = marker.getPosition().longitude;
 
-                    if(mInfo != null) {
-                       // Toast.makeText(MapsActivity.this,mInfo.title + " ",Toast.LENGTH_SHORT).show();
-                        String tmp = mInfo.latitude + mInfo.longitude;
-                        String markerId = tmp.replaceAll("\\.", "P");
-                        //Toast.makeText(MapsActivity.this,markerId + " ",Toast.LENGTH_SHORT).show();
-                        rInfo = null;
-                        checkOnInfoWindowClick = true;
-                        getRatingsForMarker(markerId,mInfo,lat,lng);
-                    }else
-                        showRatingDialog(lat,lng, 0, null, 0, 0);
-                }
+                        MarkerInformation mInfo = (MarkerInformation) marker.getTag();
+
+                        if (mInfo != null) {
+                            // Toast.makeText(MapsActivity.this,mInfo.title + " ",Toast.LENGTH_SHORT).show();
+                            String tmp = mInfo.latitude + mInfo.longitude;
+                            String markerId = tmp.replaceAll("\\.", "P");
+                            //Toast.makeText(MapsActivity.this,markerId + " ",Toast.LENGTH_SHORT).show();
+                            rInfo = null;
+                            checkOnInfoWindowClick = true;
+                            getRatingsForMarker(markerId, mInfo, lat, lng);
+                        } else
+                            showRatingDialog(lat, lng, 0, null, 0, 0);
+                    }
+
             });
         }
 
@@ -511,6 +533,65 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         setFocusToCurrentLocation = false;
     }
+
+    private void SetFriendsMarkers() {
+
+        dbRefUsersLocation.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                RemoveUserAndFriendsMarkers();
+                Iterable<DataSnapshot> children = dataSnapshot.getChildren();
+                for (DataSnapshot child : children) {
+
+                    UserLocationInfo location = child.getValue(UserLocationInfo.class);
+                    LatLng latlng = new LatLng(location.latitude,location.longitude);
+                    boolean isFriend = friendsList.contains(location.id);
+                    if (!location.id.equals(user.getUid()))
+                        addMarker(latlng,location.id ,isFriend);
+                }
+            }
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+    private void RemoveUserAndFriendsMarkers(){
+        for (Marker m : usersMarkers) {
+            m.remove();
+        }
+        for (Marker m : friendsMarkers) {
+            m.remove();
+        }
+        usersMarkers.clear();
+        friendsMarkers.clear();
+    }
+
+    private void addMarker(final LatLng latlng, String userID, boolean isFriend) {
+        if (isFriend){
+
+            MarkerOptions options = new MarkerOptions()
+                    .draggable(false)
+                    .title(userID)
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_friend_marker))
+                    .position(latlng);
+            Marker m = mMap.addMarker(options);
+
+            friendsMarkers.add(m);
+        }else{
+
+            MarkerOptions options = new MarkerOptions()
+                    .draggable(false)
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_users_marker))
+                    .position(latlng);
+            Marker m = mMap.addMarker(options);
+
+            usersMarkers.add(m);
+        }
+    }
+
+
 
     private void getRatingsForMarker(final String markerId, final MarkerInformation mInfo, final double lat, final double lng) {
 
@@ -547,13 +628,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             sumUnchecked++;
                     }
                     if (numRatings > 0){
-                        avgRating = sumRating / numRatings;
-                        rOFCalculation.avgRating = avgRating;
+                        avgRating = (float)sumRating / (float)numRatings;
+                        rOFCalculation.avgRating = round(avgRating, 2);
                         rOFCalculation.sumChecked = sumChecked;
                         rOFCalculation.sumUnchecked = sumUnchecked;
 
                         check = true;
-                        getMarkerInfoOrSetAllMarkers(markerId,rOFCalculation);
+                        getMarkerInfo(markerId,rOFCalculation);
                     }
 
                 }
@@ -565,11 +646,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 checkOnInfoWindowClick = false;
             }
         });
-        //Toast.makeText(MapsActivity.this,"Your ratings at the end are: " + rInfo.rating,Toast.LENGTH_SHORT).show();
     }
 
 
-    ArrayList<Marker> markers = new ArrayList<Marker>();
+    public static float round(float d, int decimalPlace) {
+        BigDecimal bd = new BigDecimal(Float.toString(d));
+        bd = bd.setScale(decimalPlace, BigDecimal.ROUND_HALF_UP);
+        return bd.floatValue();
+    }
 
     private void setMarker(String title, double lat, double lng, MarkerInformation markerInfo,boolean dragable) {
 
@@ -600,6 +684,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setFocusToCurrentLocation = false;
     }
 
+
+
     private void setMarkerOnCurrentLocation(double currentLatitude, double currentLongitude){
             if (currentLatitude != 0 && currentLongitude != 0){
 
@@ -613,7 +699,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 CameraUpdate update = CameraUpdateFactory.newLatLngZoom(ll, 16);
                 mMap.animateCamera(update);
             }
-        }
+    }
+
+
+
 
     @Override
     public void onLocationChanged(Location location) {
@@ -629,56 +718,26 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 setMarkerOnCurrentLocation(location.getLatitude(), location.getLongitude());
                 setFocusToCurrentLocation = true;
             }
-           // if (directions){
-                //sendRequest();
-            //}
+
+            UserLocationInfo lInfo = new UserLocationInfo(location.getLatitude(),location.getLongitude(),user.getUid());
+            dbRefUsersLocation.child(user.getUid()).setValue(lInfo);
         }
 
     }
 
-    private void setAllMarkers(){
 
-        getAllMarkersFromDatabase();
-    }
 
-    public void getMarkerInfoOrSetAllMarkers(final String markerId, final RatingObject ratingObject ){
+    public void getMarkerInfo(final String markerId, final RatingObject ratingObject ){
         databaseReference.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
-              /*  if (setAllMarkers){
-
-                    Iterable<DataSnapshot> children = dataSnapshot.getChildren();
-                    removeAllMarkers();
-                    for (DataSnapshot child: children) {
-
-                        MarkerInformation markerInfo = child.getValue(MarkerInformation.class);
-                        double lat = Double.parseDouble(markerInfo.latitude);
-                        double lng = Double.parseDouble(markerInfo.longitude);
-                        if(markersType == 0){
-
-                            setMarker(markerInfo.title,lat,lng,markerInfo,false);
-                        }
-                        if(markersType == 1){
-                            if(markerInfo.price.equals("Free")){
-                                setMarker(markerInfo.title,lat,lng,markerInfo,false);
-                            }
-                        }
-                        if (markersType == 2){
-                            if(!markerInfo.price.equals("Free")){
-                                setMarker(markerInfo.title,lat,lng,markerInfo,false);
-                            }
-                        }
-
-                    }
-                    setAllMarkers = false;
-                }*/
                if (check) {
 
                    MarkerInformation markerInformation = dataSnapshot.child(ratedMarkerID).getValue(MarkerInformation.class);
                    check = false;
                   // Toast.makeText(MapsActivity.this,"Your ratings",Toast.LENGTH_SHORT).show();
                    if(ratingObject != null && markerInformation != null){
-                       if(ratingObject.avgRating > 0){
+                       if(ratingObject.avgRating > 0 || ratingObject.sumUnchecked > 0){
                            markerInformation.averageRating = ratingObject.avgRating;
                            markerInformation.sumChecked = ratingObject.sumChecked;
                            markerInformation.sumUnchecked = ratingObject.sumUnchecked;
@@ -703,8 +762,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private void getAllMarkersFromDatabase(){
         databaseReference.addValueEventListener(new ValueEventListener() {
+
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
+
                 Iterable<DataSnapshot> children = dataSnapshot.getChildren();
                 removeAllMarkers();
                 for (DataSnapshot child: children) {
@@ -718,11 +779,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     }
                     if(markersType == 1){
                         if(markerInfo.price.equals("Free")){
+
                             setMarker(markerInfo.title,lat,lng,markerInfo,false);
                         }
                     }
                     if (markersType == 2){
                         if(!markerInfo.price.equals("Free")){
+
                             setMarker(markerInfo.title,lat,lng,markerInfo,false);
                         }
                     }
@@ -736,12 +799,16 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
     }
+
+
+
+
     @Override
     public void onConnected(@Nullable Bundle bundle) {
 
         mLocationRequest = LocationRequest.create();
         mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setInterval(1000);
+        mLocationRequest.setInterval(5000);
 
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             // TODO: Consider calling
@@ -755,6 +822,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
+
 
     @Override
     public void onConnectionSuspended(int i) {
@@ -801,8 +869,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private Location getNearestParking() {
-        float min = 999999999;
+
+        float min = Float.MAX_VALUE;
         Location minDest = null;
+
         for (Marker marker : markers) {
 
             double lat = marker.getPosition().latitude;
@@ -811,6 +881,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             dest.setLatitude(lat);
             dest.setLongitude(lng);
             float distanceInMeters = currentLocation.distanceTo(dest);
+
             if(distanceInMeters < min){
 
                 minDest = dest;
@@ -824,6 +895,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onDirectionFinderStart() {
+
         progressDialog = ProgressDialog.show(this, "Molimo sacekajte.", "", true);
     }
 
@@ -876,174 +948,5 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             polylinePaths.add(mMap.addPolyline(polylineOptions));
 
         }
-    }
-    private static final String NOTIFICATION_MSG = "You forgot your car!";
-    // Create a Intent send by the notification
-    public static Intent makeNotificationIntent(Context context, String msg) {
-        Intent intent = new Intent( context, MapsActivity.class );
-        intent.putExtra( NOTIFICATION_MSG, msg );
-        return intent;
-    }
-
-    // Start Geofence creation process
-    private void startGeofence() {
-      //  Log.i(TAG, "startGeofence()");
-        if( myCar != null ) {
-            Geofence geofence = createGeofence( myCar.getPosition(), GEOFENCE_RADIUS );
-            GeofencingRequest geofenceRequest = createGeofenceRequest( geofence );
-            addGeofence( geofenceRequest );
-        } else {
-           // Log.e(TAG, "Geofence marker is null");
-        }
-    }
-
-    private static final long GEO_DURATION = 60 * 60 * 1000;
-    private static final String GEOFENCE_REQ_ID = "My Geofence";
-    private static final float GEOFENCE_RADIUS = 5.0f; // in meters
-
-    // Create a Geofence
-    private Geofence createGeofence( LatLng latLng, float radius ) {
-        //Log.d(TAG, "createGeofence");
-        return new Geofence.Builder()
-                .setRequestId(GEOFENCE_REQ_ID)
-                .setCircularRegion( latLng.latitude, latLng.longitude, radius)
-                .setExpirationDuration( GEO_DURATION )
-                .setTransitionTypes( Geofence.GEOFENCE_TRANSITION_ENTER
-                        | Geofence.GEOFENCE_TRANSITION_EXIT )
-                .build();
-    }
-
-    // Create a Geofence Request
-    private GeofencingRequest createGeofenceRequest( Geofence geofence ) {
-        //Log.d(TAG, "createGeofenceRequest");
-        return new GeofencingRequest.Builder()
-                .setInitialTrigger( GeofencingRequest.INITIAL_TRIGGER_ENTER )
-                .addGeofence( geofence )
-                .build();
-    }
-
-    private PendingIntent geoFencePendingIntent;
-    private final int GEOFENCE_REQ_CODE = 0;
-    private PendingIntent createGeofencePendingIntent() {
-       // Log.d(TAG, "createGeofencePendingIntent");
-        if ( geoFencePendingIntent != null )
-            return geoFencePendingIntent;
-
-        Intent intent = new Intent( this, GeofenceTransitionService.class);
-        return PendingIntent.getService(
-                this, GEOFENCE_REQ_CODE, intent, PendingIntent.FLAG_UPDATE_CURRENT );
-    }
-    // Check for permission to access Location
-    private boolean checkPermission() {
-       // Log.d(TAG, "checkPermission()");
-        // Ask for permission if it wasn't granted yet
-        return (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED );
-    }
-    // Add the created GeofenceRequest to the device's monitoring list
-    private void addGeofence(GeofencingRequest request) {
-       // Log.d(TAG, "addGeofence");
-        if (checkPermission())
-            LocationServices.GeofencingApi.addGeofences(
-                    mGoogleApiClient,
-                    request,
-                    createGeofencePendingIntent()
-            ).setResultCallback(this);
-    }
-
-    @Override
-    public void onResult(@NonNull Status status) {
-     //   Log.i(TAG, "onResult: " + status);
-        if ( status.isSuccess() ) {
-            saveGeofence();
-            drawGeofence();
-        } else {
-            // inform about fail
-        }
-    }
-
-    // Draw Geofence circle on GoogleMap
-    private Circle geoFenceLimits;
-    private void drawGeofence() {
-      //  Log.d(TAG, "drawGeofence()");
-
-        if ( geoFenceLimits != null )
-            geoFenceLimits.remove();
-
-        CircleOptions circleOptions = new CircleOptions()
-                .center( myCar.getPosition())
-                .strokeColor(Color.argb(50, 70,70,70))
-                .fillColor( Color.argb(100, 150,150,150) )
-                .radius( GEOFENCE_RADIUS );
-        geoFenceLimits = mMap.addCircle( circleOptions );
-    }
-
-    private final String KEY_GEOFENCE_LAT = "GEOFENCE LATITUDE";
-    private final String KEY_GEOFENCE_LON = "GEOFENCE LONGITUDE";
-
-    // Saving GeoFence marker with prefs mng
-    private void saveGeofence() {
-       // Log.d(TAG, "saveGeofence()");
-        SharedPreferences sharedPref = getPreferences( Context.MODE_PRIVATE );
-        SharedPreferences.Editor editor = sharedPref.edit();
-
-        editor.putLong( KEY_GEOFENCE_LAT, Double.doubleToRawLongBits( myCar.getPosition().latitude ));
-        editor.putLong( KEY_GEOFENCE_LON, Double.doubleToRawLongBits( myCar.getPosition().longitude ));
-        editor.apply();
-    }
-
-    // Recovering last Geofence marker
-    private void recoverGeofenceMarker() {
-        //Log.d(TAG, "recoverGeofenceMarker");
-        SharedPreferences sharedPref = getPreferences( Context.MODE_PRIVATE );
-
-        if ( sharedPref.contains( KEY_GEOFENCE_LAT ) && sharedPref.contains( KEY_GEOFENCE_LON )) {
-            double lat = Double.longBitsToDouble( sharedPref.getLong( KEY_GEOFENCE_LAT, -1 ));
-            double lon = Double.longBitsToDouble( sharedPref.getLong( KEY_GEOFENCE_LON, -1 ));
-            LatLng latLng = new LatLng( lat, lon );
-            markerForGeofence(latLng);
-            drawGeofence();
-        }
-    }
-    private void markerForGeofence(LatLng latLng) {
-        //Log.i(TAG, "markerForGeofence("+latLng+")");
-        String title = latLng.latitude + ", " + latLng.longitude;
-        // Define marker options
-        MarkerOptions markerOptions = new MarkerOptions()
-                .position(latLng)
-                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE))
-                .title(title);
-        if ( mMap!=null ) {
-            // Remove last geoFenceMarker
-            if (myCar != null)
-                myCar.remove();
-
-            myCar = mMap.addMarker(markerOptions);
-
-        }
-    }
-    // Clear Geofence
-    private void clearGeofence() {
-       // Log.d(TAG, "clearGeofence()");
-        LocationServices.GeofencingApi.removeGeofences(
-                mGoogleApiClient,
-                createGeofencePendingIntent()
-        ).setResultCallback(new ResultCallback<Status>() {
-            @Override
-            public void onResult(@NonNull Status status) {
-                if ( status.isSuccess() ) {
-                    // remove drawing
-                    removeGeofenceDraw();
-                }
-            }
-        });
-    }
-
-    private void removeGeofenceDraw() {
-        //Log.d(TAG, "removeGeofenceDraw()");
-        if ( myCar != null)
-            myCar.remove();
-        if ( geoFenceLimits != null )
-            geoFenceLimits.remove();
     }
 }

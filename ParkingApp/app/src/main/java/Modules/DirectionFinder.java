@@ -22,6 +22,7 @@ import java.util.List;
 
 
 public class DirectionFinder extends MapsActivity {
+
     private static final String DIRECTION_URL_API = "https://maps.googleapis.com/maps/api/directions/json?";
     private static final String GOOGLE_API_KEY = "AIzaSyC0KpodwkwsgOk6r3MGfw7GPvTViSGZK1g";
     private DirectionFinderListener listener;
@@ -29,6 +30,7 @@ public class DirectionFinder extends MapsActivity {
     private String destination;
 
     public DirectionFinder(DirectionFinderListener listener, String origin, String destination) {
+
         this.listener = listener;
         this.origin = origin;
         this.destination = destination;
@@ -40,9 +42,6 @@ public class DirectionFinder extends MapsActivity {
     }
 
     private String createUrl() throws UnsupportedEncodingException {
-
-
-
   //      String urlDestination = URLEncoder.encode(destination, "utf-8");
 
         return DIRECTION_URL_API + "origin="+ origin + "&destination=" + destination + "&key=" + GOOGLE_API_KEY;
@@ -93,7 +92,9 @@ public class DirectionFinder extends MapsActivity {
         List<Route> routes = new ArrayList<Route>();
         JSONObject jsonData = new JSONObject(data);
         JSONArray jsonRoutes = jsonData.getJSONArray("routes");
+
         for (int i = 0; i < jsonRoutes.length(); i++) {
+
             JSONObject jsonRoute = jsonRoutes.getJSONObject(i);
             Route route = new Route();
 

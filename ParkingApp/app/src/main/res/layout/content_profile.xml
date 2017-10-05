@@ -42,18 +42,22 @@
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/text_margin"
         android:hint="Country" />
+
     <EditText
         android:id="@+id/editTextZip"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/text_margin"
-        android:hint="Zip" />
+        android:hint="Zip"
+        android:inputType="number" />
+
     <EditText
         android:id="@+id/editTextPhoneNumber"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="@dimen/text_margin"
-        android:hint="Phone number" />
+        android:hint="Phone number"
+        android:inputType="phone" />
     <Button
         android:id="@+id/btnSave"
         style="@style/Widget.AppCompat.Button.Colored"

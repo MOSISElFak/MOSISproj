@@ -5,8 +5,8 @@ package zdravkovic.stefan.parkingapp;
  */
 
 public class RatingInformation {
-    float rating;
-    boolean checked;
+    public float rating;
+    public boolean checked;
 
     public RatingInformation(float rating, boolean checked) {
         this.rating = rating;

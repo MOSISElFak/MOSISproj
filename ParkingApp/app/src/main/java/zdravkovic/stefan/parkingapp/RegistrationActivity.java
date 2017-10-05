@@ -16,6 +16,7 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 
 public class RegistrationActivity extends AppCompatActivity implements View.OnClickListener {
 
@@ -68,6 +69,12 @@ public class RegistrationActivity extends AppCompatActivity implements View.OnCl
             //stoping the function from execution further
             return;
         }
+        if (!email.contains("@")){
+            //email is not valid
+            Toast.makeText(this,"Email address is not valid",Toast.LENGTH_SHORT).show();
+            //stoping the function from execution further
+            return;
+        }
         //if validation is ok
         //we will first show the progressbar
         progressDialog.setMessage("Registering User...");
@@ -77,14 +84,21 @@ public class RegistrationActivity extends AppCompatActivity implements View.OnCl
                     @Override
                     public void onComplete(@NonNull Task<AuthResult> task) {
                         progressDialog.dismiss();
-                        if(task.isComplete()){
+                        if (!task.isSuccessful()) {
+
+                            if (task.getException() instanceof FirebaseAuthUserCollisionException) {
+                                Toast.makeText(RegistrationActivity.this, "User with this email already exist.", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+                        }
+                        if(task.isSuccessful()){
                             //user is successfully registered and loged in
                             //we will start the profile activity here
                             Toast.makeText(RegistrationActivity.this,"Registered successfully",Toast.LENGTH_SHORT).show();
                             finish();
                             startActivity(new Intent(getApplicationContext(),MenuActivity.class));
-
-                        }else {
+                        }
+                        if(!task.isComplete()){
                             Toast.makeText(RegistrationActivity.this, "Could not register, please try again", Toast.LENGTH_SHORT).show();
                         }
                     }

@@ -43,6 +43,15 @@
             android:textAllCaps="false" />
 
         <Button
+            android:id="@+id/btnFriends"
+            style="@android:style/Widget.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Friends"
+            android:textAllCaps="false" />
+
+        <Button
             android:id="@+id/btnLogout"
             style="@android:style/Widget.Button"
             android:layout_width="match_parent"

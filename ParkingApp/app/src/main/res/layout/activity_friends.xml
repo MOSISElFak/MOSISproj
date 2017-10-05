@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context="zdravkovic.stefan.parkingapp.FriendsActivity">
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+<!--        @android:style/Widget.Material.Button.Colored       -->
+        <Button
+            android:id="@+id/addFriend"
+            style="@android:style/Widget.Button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_margin="20px"
+            android:drawableLeft="@drawable/ic_btn_add"
+            android:text="Add New Friend" />
+
+
+
+    </RelativeLayout>
+
+    <EditText
+        android:id="@+id/editText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="15dp"
+        android:ems="10"
+        android:focusable="false"
+        android:inputType="textPersonName"
+        android:padding="15dp"
+        android:text="Friends list:"
+        android:textColor="@color/common_google_signin_btn_text_dark_focused" />
+
+    <ListView
+        android:layout_margin="20px"
+        android:id="@+id/lvFriendsList"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</LinearLayout>

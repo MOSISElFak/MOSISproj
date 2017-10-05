@@ -4,17 +4,6 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     tools:context="zdravkovic.stefan.parkingapp.MapsActivity">
     <item
-        android:id="@+id/btnClear"
-        android:icon="@android:drawable/ic_delete"
-        android:title="Clear geofance"
-        app:showAsAction="always" />
-    <item
-        android:icon="@drawable/unnamed"
-        android:id="@+id/btnMyCar"
-        android:title="My car"
-        app:showAsAction="always"
-        />
-    <item
         android:id="@+id/find"
         android:title="Find Parking"
         android:icon="@drawable/parkme"
